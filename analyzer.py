@@ -6,7 +6,7 @@ import os
 import xml.etree.ElementTree as ET
 import sys
 
-# --- Modell laden von JSON (UTF-8) ---
+# --- Modell laden von JSON statt YAML ---
 model = json.load(open("architecture.json", encoding="utf-8"))
 layers_rules = {
     layer_name: data["allowed"]
@@ -27,33 +27,36 @@ def layer_of(path: pathlib.Path) -> str:
 deps = []
 violations = []
 
-# Alle .py-Dateien im Verzeichnis atm/ scannen
+# Dateien in atm/ durchsuchen
 for py in pathlib.Path("atm").rglob("*.py"):
-    # analyzer.py nicht gegen sich selbst laufen lassen
+    # analyzer.py ausnehmen
     if py.name == "analyzer.py":
         continue
 
     src_layer = layer_of(py)
-    tree = ast.parse(open(py, encoding="utf-8").read())
+    tree = ast.parse(py.read_text(encoding="utf-8"))
 
-    # Sammle alle Imports
+    # sowohl import als auch from-imports erfassen
     imports = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            imports.extend([n.name.split(".")[0] for n in node.names])
+            for alias in node.names:
+                imports.append(alias.name.split(".")[0])
         elif isinstance(node, ast.ImportFrom) and node.module:
-            imports.append(node.module.split(".")[0])
+            # letzte Komponente als Zielmodul
+            imports.append(node.module.split(".")[-1])
 
-    # Prüfe jede Import-Kante
     for imp in imports:
-        tgt_path = py.with_name(f"{imp}.py")
+        tgt_path = py.with_name(imp + ".py")
         tgt_layer = layer_of(tgt_path)
         deps.append((src_layer, tgt_layer, py.name, imp))
         if tgt_layer not in layers_rules.get(src_layer, []):
             violations.append((src_layer, tgt_layer, py.name, imp))
 
 # Konsolenausgabe
-print(f"[ArchGuard] Analysierte {len(deps)} Import-Kanten")
+echoed = f"[ArchGuard] Analysierte {len(deps)} Import-Kanten"
+print(echoed)
+exit_code = 0
 if violations:
     print(f"[ArchGuard] FAIL: {len(violations)} Verstöße gefunden")
     for v in violations:
@@ -61,7 +64,6 @@ if violations:
     exit_code = 1
 else:
     print("[ArchGuard] PASS: Keine Verstöße gefunden")
-    exit_code = 0
 
 # JUnit-XML erzeugen
 os.makedirs("tests-results", exist_ok=True)
@@ -71,19 +73,14 @@ suite = ET.Element(
     tests=str(len(deps) if deps else 1),
     failures=str(len(violations))
 )
-
 for d in deps:
     case = ET.SubElement(
-        suite,
-        "testcase",
-        classname=d[0],
-        name=f"{d[2]} -> {d[3]}"
+        suite, "testcase", classname=d[0], name=f"{d[2]} -> {d[3]}"
     )
     if d in violations:
         fail = ET.SubElement(case, "failure", message="Layer breach")
         fail.text = f"{d[2]} imports {d[3]} ({d[0]}->{d[1]} not allowed)"
-
-# Dummy-Test, falls gar keine Imports gefunden
+# Dummy-Test, falls keine Imports gefunden wurden
 if not deps:
     ET.SubElement(
         suite,
@@ -91,30 +88,28 @@ if not deps:
         classname="ArchGuard",
         name="no-imports"
     )
-
 ET.ElementTree(suite).write("tests-results/archguard.xml", encoding="utf-8")
 
 # HTML-Report mit Mermaid
-html = [
+template = [
     "<h2>ArchGuard Report</h2>",
     "<pre>"
 ]
 for d in deps:
     mark = "FAIL" if d in violations else "PASS"
-    html.append(f"{mark} {d[2]} -> {d[3]} ({d[0]}->{d[1]})")
-html += [
+    template.append(f"{mark} {d[2]} -> {d[3]} ({d[0]}->{d[1]})")
+template += [
     "</pre>",
     "<h3>Dependency graph</h3>",
     "<pre class='mermaid'>",
     "graph LR"
 ]
 for d in deps:
-    html.append(
-        f'{d[2]}["{d[2]}\\n({d[0]})"] --> {d[3]}["{d[3]}\\n({d[1]})"]'
+    template.append(
+        f"{d[2]}[\"{d[2]}\\n({d[0]})\"] --> {d[3]}[\"{d[3]}\\n({d[1]})\"]"
     )
-html.append("</pre>")
-
+template.append("</pre>")
 with open("archguard_report.html", "w", encoding="utf-8") as f:
-    f.write("\n".join(html))
+    f.write("\n".join(template))
 
 sys.exit(exit_code)
