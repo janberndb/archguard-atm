@@ -6,7 +6,7 @@ import os
 import xml.etree.ElementTree as ET
 import sys
 
-# --- Modell laden von JSON statt YAML ---
+# --- Load model from JSON instead of YAML ---
 model = json.load(open("architecture.json", encoding="utf-8"))
 layers_rules = {
     layer_name: data["allowed"]
@@ -27,7 +27,7 @@ def layer_of(path: pathlib.Path) -> str:
 deps = []
 violations = []
 
-# Alle .py-Dateien unterhalb des Projekt-Roots durchsuchen
+# Search all .py files under project root
 for py in pathlib.Path(".").rglob("*.py"):
     if py.name == "analyzer.py":
         continue
@@ -35,7 +35,7 @@ for py in pathlib.Path(".").rglob("*.py"):
     src_layer = layer_of(py)
     tree = ast.parse(py.read_text(encoding="utf-8"))
 
-    # sowohl import als auch from-import erfassen
+    # capture both import and from-import statements
     imports = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -51,18 +51,18 @@ for py in pathlib.Path(".").rglob("*.py"):
         if tgt_layer not in layers_rules.get(src_layer, []):
             violations.append((src_layer, tgt_layer, py.name, imp))
 
-# Konsolenausgabe
-print(f"[ArchGuard] Analysierte {len(deps)} Import-Kanten")
+# Console output
+print(f"[ArchGuard] Analyzed {len(deps)} import edges")
 exit_code = 0
 if violations:
-    print(f"[ArchGuard] FAIL: {len(violations)} Verstöße gefunden")
+    print(f"[ArchGuard] FAIL: {len(violations)} violations found")
     for v in violations:
         print(f"   FAIL: {v[2]} ({v[0]}) -> {v[3]} ({v[1]})")
     exit_code = 1
 else:
-    print("[ArchGuard] PASS: Keine Verstöße gefunden")
+    print("[ArchGuard] PASS: No violations found")
 
-# JUnit-XML erzeugen
+# Generate JUnit XML
 os.makedirs("tests-results", exist_ok=True)
 suite = ET.Element(
     "testsuite",
@@ -81,10 +81,10 @@ if not deps:
     ET.SubElement(suite, "testcase", classname="ArchGuard", name="no-imports")
 ET.ElementTree(suite).write("tests-results/archguard.xml", encoding="utf-8")
 
-# HTML-Report mit Mermaid und wörtlicher Erklärung samt Vorschlägen
+# HTML report with Mermaid, explanation and remediation suggestions
 html_lines = [
     "<!DOCTYPE html>",
-    "<html lang=\"de\">",
+    "<html lang=\"en\">",
     "<head>",
     "  <meta charset=\"utf-8\">",
     "  <title>ArchGuard Report</title>",
@@ -97,44 +97,44 @@ html_lines = [
     "</head>",
     "<body>",
     "  <h2>ArchGuard Report</h2>",
-    "  <h3>Erklärung der Verstöße</h3>",
+    "  <h3>Violation Details</h3>",
 ]
 
 if violations:
     html_lines += [
-        "  <p>Folgende Verstöße gegen das Architekturmodell wurden gefunden:</p>",
+        "  <p>The following architectural violations were found:</p>",
         "  <ul>",
     ]
     for src, tgt, fname, imp in violations:
         html_lines.append(
-            f"    <li>Die Datei <b>{fname}</b> im Layer <i>{src}</i> importiert "
-            f"<b>{imp}.py</b> im Layer <i>{tgt}</i>, was gemäß Modell nicht erlaubt ist.</li>"
+            f"    <li>The file <b>{fname}</b> in layer <i>{src}</i> imports "
+            f"<b>{imp}.py</b> in layer <i>{tgt}</i>, which is not allowed by the model.</li>"
         )
     html_lines.append("  </ul>")
 else:
     html_lines.append(
-        "  <p>Keine Verstöße gefunden — alle Abhängigkeiten entsprechen dem Modell.</p>"
+        "  <p>No violations found — all dependencies comply with the model.</p>"
     )
 
-# NEUER ABSCHNITT: Vorschläge zur Behebung
+# Remediation Suggestions
 html_lines += [
-    "  <h3>Vorschläge zur Behebung</h3>",
+    "  <h3>Remediation Suggestions</h3>",
 ]
 if violations:
     html_lines.append("  <ul>")
     for src, tgt, fname, imp in violations:
         allowed = layers_rules.get(src, [])
         html_lines.append(
-            f"    <li>In <b>{fname}</b> ({src}) sind nur Importe in Layer "
-            f"<i>{', '.join(allowed)}</i> erlaubt. Passen Sie Ihren Import entsprechend an.</li>"
+            f"    <li>In <b>{fname}</b> ({src}), only imports to layers "
+            f"<i>{', '.join(allowed)}</i> are allowed. Please adjust your import.</li>"
         )
     html_lines.append("  </ul>")
 else:
     html_lines.append("  <p>—</p>")
 
-# Detailübersicht und Graph
+# Detailed overview and dependency graph
 html_lines += [
-    "  <h3>Detailübersicht</h3>",
+    "  <h3>Detailed Overview</h3>",
     "  <pre>",
 ]
 for d in deps:
@@ -142,7 +142,7 @@ for d in deps:
     html_lines.append(f"    {mark} {d[2]} -> {d[3]} ({d[0]}->{d[1]})")
 html_lines += [
     "  </pre>",
-    "  <h3>Dependency graph</h3>",
+    "  <h3>Dependency Graph</h3>",
     "  <pre class=\"mermaid\">",
     "    graph LR",
 ]
