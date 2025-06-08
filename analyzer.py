@@ -24,17 +24,23 @@ def layer_of(path: pathlib.Path) -> str:
             return layer
     return "Unknown"
 
-# Abhängigkeiten und Verstöße sammeln
 deps = []
 violations = []
+
+# jetzt lowercase 'atm'
 for py in pathlib.Path("atm").rglob("*.py"):
+    # falls du analyzer.py in atm liegen hättest
+    if py.name == "analyzer.py":
+        continue
+
+    src_layer = layer_of(py)
     tree = ast.parse(open(py, encoding="utf-8").read())
     imports = [
         node.names[0].name.split(".")[0]
         for node in ast.walk(tree)
         if isinstance(node, ast.Import)
     ]
-    src_layer = layer_of(py)
+
     for imp in imports:
         tgt_path = py.with_name(imp + ".py")
         tgt_layer = layer_of(tgt_path)
@@ -42,7 +48,7 @@ for py in pathlib.Path("atm").rglob("*.py"):
         if tgt_layer not in layers_rules.get(src_layer, []):
             violations.append((src_layer, tgt_layer, py.name, imp))
 
-# Konsolenausgabe mit ASCII-Pfeilen
+# Konsolenausgabe mit einfachem '->'
 print(f"[ArchGuard] Analysierte {len(deps)} Import-Kanten")
 if violations:
     print(f"[ArchGuard] FAIL: {len(violations)} Verstöße gefunden")
@@ -53,7 +59,7 @@ else:
     print("[ArchGuard] PASS: Keine Verstöße gefunden")
     exit_code = 0
 
-# JUnit-XML-Erzeugung
+# JUnit-XML erzeugen
 os.makedirs("tests-results", exist_ok=True)
 suite = ET.Element(
     "testsuite",
@@ -62,7 +68,6 @@ suite = ET.Element(
     failures=str(len(violations))
 )
 
-# Echte Testcases
 for d in deps:
     case = ET.SubElement(
         suite,
@@ -74,7 +79,7 @@ for d in deps:
         fail = ET.SubElement(case, "failure", message="Layer breach")
         fail.text = f"{d[2]} imports {d[3]} ({d[0]}->{d[1]} not allowed)"
 
-# Dummy-Testcase, wenn es gar keine Imports gab
+# Dummy-Test, falls gar keine Imports gefunden wurden
 if not deps:
     ET.SubElement(
         suite,
@@ -85,7 +90,7 @@ if not deps:
 
 ET.ElementTree(suite).write("tests-results/archguard.xml")
 
-# HTML-Bericht mit Mermaid-Graph
+# HTML-Report mit Mermaid
 html = [
     "<h2>ArchGuard Report</h2>",
     "<pre>"
