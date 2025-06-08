@@ -98,11 +98,47 @@ if not deps:
     )
 ET.ElementTree(suite).write("tests-results/archguard.xml", encoding="utf-8")
 
-# HTML-Report mit Mermaid
-template = [
+# HTML-Report mit Mermaid und wörtlicher Erklärung
+html = [
     "<h2>ArchGuard Report</h2>",
+    "<h3>Erklärung der Verstöße</h3>",
+]
+
+if violations:
+    html += [
+        "<p>Folgende Verstöße gegen das Architekturmodell wurden gefunden:</p>",
+        "<ul>"
+    ]
+    for src, tgt, fname, imp in violations:
+        html.append(
+            f"<li>Die Datei <b>{fname}</b> im Layer <i>{src}</i> importiert "
+            f"<b>{imp}.py</b> im Layer <i>{tgt}</i>, was gemäß Modell nicht erlaubt ist.</li>"
+        )
+    html.append("</ul>")
+else:
+    html.append("<p>Keine Verstöße gefunden — alle Abhängigkeiten entsprechen dem Modell.</p>")
+
+# Danach dein bisheriges Detail-Listing
+html += [
+    "<h3>Detailübersicht</h3>",
     "<pre>"
 ]
+for d in deps:
+    mark = "FAIL" if d in violations else "PASS"
+    html.append(f"{mark} {d[2]} -> {d[3]} ({d[0]}->{d[1]})")
+html += [
+    "</pre>",
+    "<h3>Dependency graph</h3>",
+    "<pre class='mermaid'>",
+    "graph LR"
+]
+for d in deps:
+    html.append(
+        f'{d[2]}["{d[2]}\\n({d[0]})"] --> {d[3]}["{d[3]}\\n({d[1]})"]'
+    )
+html.append("</pre>")
+
+
 for d in deps:
     mark = "FAIL" if d in violations else "PASS"
     template.append(f"{mark} {d[2]} -> {d[3]} ({d[0]}->{d[1]})")
