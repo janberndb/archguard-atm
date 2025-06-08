@@ -29,7 +29,7 @@ violations = []
 
 # Alle .py-Dateien unterhalb des Projekt-Roots durchsuchen
 for py in pathlib.Path(".").rglob("*.py"):
-    # eigenen Analyzer und mögliche Test-Skripte überspringen
+    # eigenen Analyzer überspringen
     if py.name == "analyzer.py":
         continue
 
@@ -79,54 +79,70 @@ for d in deps:
         fail = ET.SubElement(case, "failure", message="Layer breach")
         fail.text = f"{d[2]} imports {d[3]} ({d[0]}->{d[1]} not allowed)"
 if not deps:
-    ET.SubElement(
-        suite,
-        "testcase",
-        classname="ArchGuard",
-        name="no-imports"
-    )
+    ET.SubElement(suite, "testcase", classname="ArchGuard", name="no-imports")
 ET.ElementTree(suite).write("tests-results/archguard.xml", encoding="utf-8")
 
 # HTML-Report mit Mermaid und wörtlicher Erklärung
-html = [
-    "<h2>ArchGuard Report</h2>",
-    "<h3>Erklärung der Verstöße</h3>",
+html_lines = [
+    "<!DOCTYPE html>",
+    "<html lang=\"de\">",
+    "<head>",
+    "  <meta charset=\"utf-8\" />",
+    "  <title>ArchGuard Report</title>",
+    "  <!-- Mermaid laden -->",
+    "  <script src=\"https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js\"></script>",
+    "  <script>mermaid.initialize({ startOnLoad: true });</script>",
+    "  <style>",
+    "    body { font-family: sans-serif; padding: 1rem; }",
+    "    pre.mermaid { background: #f9f9f9; padding: 1rem; border-radius: 4px; }",
+    "  </style>",
+    "</head>",
+    "<body>",
+    "  <h2>ArchGuard Report</h2>",
+    "  <h3>Erklärung der Verstöße</h3>",
 ]
 
 if violations:
-    html += [
-        "<p>Folgende Verstöße gegen das Architekturmodell wurden gefunden:</p>",
-        "<ul>"
+    html_lines += [
+        "  <p>Folgende Verstöße gegen das Architekturmodell wurden gefunden:</p>",
+        "  <ul>",
     ]
     for src, tgt, fname, imp in violations:
-        html.append(
-            f"<li>Die Datei <b>{fname}</b> im Layer <i>{src}</i> importiert "
+        html_lines.append(
+            f"    <li>Die Datei <b>{fname}</b> im Layer <i>{src}</i> importiert "
             f"<b>{imp}.py</b> im Layer <i>{tgt}</i>, was gemäß Modell nicht erlaubt ist.</li>"
         )
-    html.append("</ul>")
+    html_lines.append("  </ul>")
 else:
-    html.append("<p>Keine Verstöße gefunden — alle Abhängigkeiten entsprechen dem Modell.</p>")
+    html_lines.append(
+        "  <p>Keine Verstöße gefunden — alle Abhängigkeiten entsprechen dem Modell.</p>"
+    )
 
-html += [
-    "<h3>Detailübersicht</h3>",
-    "<pre>"
+html_lines += [
+    "  <h3>Detailübersicht</h3>",
+    "  <pre>",
 ]
 for d in deps:
     mark = "FAIL" if d in violations else "PASS"
-    html.append(f"{mark} {d[2]} -> {d[3]} ({d[0]}->{d[1]})")
-html += [
-    "</pre>",
-    "<h3>Dependency graph</h3>",
-    "<pre class='mermaid'>",
-    "graph LR"
+    html_lines.append(f"    {mark} {d[2]} -> {d[3]} ({d[0]}->{d[1]})")
+html_lines += [
+    "  </pre>",
+    "  <h3>Dependency graph</h3>",
+    "  <pre class=\"mermaid\">",
+    "    graph LR",
 ]
 for d in deps:
-    html.append(
-        f'{d[2]}["{d[2]}\\n({d[0]})"] --> {d[3]}["{d[3]}\\n({d[1]})"]'
+    src, tgt, fname, imp = d
+    html_lines.append(
+        f"    {fname}[\"{fname}\\n({src})\"] --> {imp}[\"{imp}\\n({tgt})\"]"
     )
-html.append("</pre>")
+html_lines += [
+    "  </pre>",
+    "</body>",
+    "</html>",
+]
 
 with open("archguard_report.html", "w", encoding="utf-8") as f:
-    f.write("\n".join(html))
+    f.write("\n".join(html_lines))
 
 sys.exit(exit_code)
