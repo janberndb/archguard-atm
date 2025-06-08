@@ -1,0 +1,23 @@
+{
+  "meta": {
+    "name": "ATM 4+1 Demo",
+    "author": "Team ArchGuard",
+    "views": ["logical", "development"]
+  },
+  "logical": {
+    "layers": {
+      "Presentation":  {"allowed": ["Application"]},
+      "Application":   {"allowed": ["Domain"]},
+      "Domain":        {"allowed": ["Persistence"]},
+      "Persistence":   {"allowed": []}
+    }
+  },
+  "development": {
+    "components": [
+      {"name": "ui",     "folder": "atm/ui/*",     "layer": "Presentation"},
+      {"name": "app",    "folder": "atm/app/*",    "layer": "Application"},
+      {"name": "domain", "folder": "atm/domain/*", "layer": "Domain"},
+      {"name": "repo",   "folder": "atm/repo/*",   "layer": "Persistence"}
+    ]
+  }
+}
