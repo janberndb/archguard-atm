@@ -18,37 +18,45 @@ comp_map = {
 }
 
 def layer_of(path: pathlib.Path) -> str:
+    """
+    Ermittelt die Schicht (Layer) eines Pfads anhand des Komponentenschemas.
+    """
     rel = str(path).replace("\\", "/")
     for pattern, layer in comp_map.items():
         if pathlib.Path(rel).match(pattern):
             return layer
     return "Unknown"
 
+# Unterstütze sowohl 'atm' als auch 'ATM' als Wurzelordner
+roots = [r for r in ("atm", "ATM") if pathlib.Path(r).is_dir()]
+
 deps = []
 violations = []
+for root in roots:
+    for py in pathlib.Path(root).rglob("*.py"):
+        # Analyzer selbst überspringen
+        if py.name == "analyzer.py":
+            continue
 
-# jetzt lowercase 'atm'
-for py in pathlib.Path("atm").rglob("*.py"):
-    # falls du analyzer.py in atm liegen hättest
-    if py.name == "analyzer.py":
-        continue
+        src_layer = layer_of(py)
+        tree = ast.parse(open(py, encoding="utf-8").read())
+        imports = []
+        for node in ast.walk(tree):
+            # normale Imports: import foo
+            if isinstance(node, ast.Import):
+                imports += [alias.name.split(".")[0] for alias in node.names]
+            # from foo.bar import Baz
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imports.append(node.module.split(".")[0])
 
-    src_layer = layer_of(py)
-    tree = ast.parse(open(py, encoding="utf-8").read())
-    imports = [
-        node.names[0].name.split(".")[0]
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Import)
-    ]
+        for imp in imports:
+            tgt_path = py.with_name(imp + ".py")
+            tgt_layer = layer_of(tgt_path)
+            deps.append((src_layer, tgt_layer, py.name, imp))
+            if tgt_layer not in layers_rules.get(src_layer, []):
+                violations.append((src_layer, tgt_layer, py.name, imp))
 
-    for imp in imports:
-        tgt_path = py.with_name(imp + ".py")
-        tgt_layer = layer_of(tgt_path)
-        deps.append((src_layer, tgt_layer, py.name, imp))
-        if tgt_layer not in layers_rules.get(src_layer, []):
-            violations.append((src_layer, tgt_layer, py.name, imp))
-
-# Konsolenausgabe mit einfachem '->'
+# Konsolenausgabe
 print(f"[ArchGuard] Analysierte {len(deps)} Import-Kanten")
 if violations:
     print(f"[ArchGuard] FAIL: {len(violations)} Verstöße gefunden")
@@ -106,7 +114,7 @@ html += [
 ]
 for d in deps:
     html.append(
-        f'{d[2]}["{d[2]}\\n({d[0]})"] --> {d[3]}["{d[3]}\\n({d[1]})"]'
+        f'{d[2]}["{d[2]}\n({d[0]})"] --> {d[3]}["{d[3]}\n({d[1]})"]'
     )
 html.append("</pre>")
 
