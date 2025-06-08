@@ -28,7 +28,15 @@ deps = []
 violations = []
 
 # Dateien in atm/ durchsuchen
-for py in pathlib.Path("atm").rglob("*.py"):
+# alte Zeile
+# for py in pathlib.Path("atm").rglob("*.py"):
+
+# neue Zeile – suche alle .py unterhalb des Projekt-Roots
+for py in pathlib.Path(".").rglob("*.py"):
+    if py.name == "analyzer.py":   # eigenen Analyzer überspringen
+        continue
+    ...
+
     # analyzer.py ausnehmen
     if py.name == "analyzer.py":
         continue
