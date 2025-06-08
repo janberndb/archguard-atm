@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import json, pathlib, ast, os, xml.etree.ElementTree as ET, sys
 
-# --- Modell laden von JSON ---
+# --- Modell laden ---
 model = json.load(open("architecture.json"))
 layers_rules = {k: v['allowed'] for k, v in model['logical']['layers'].items()}
 comp_map = {c['folder']: c['layer'] for c in model['development']['components']}
@@ -13,20 +13,21 @@ def layer_of(path):
             return layer
     return "Unknown"
 
-# --- Import-Kanten sammeln und Verstöße erkennen ---
+# --- Import-Kanten sammeln ---
 deps, violations = [], []
 for py in pathlib.Path("atm").rglob("*.py"):
     tree = ast.parse(open(py).read())
-    imports = [n.names[0].name.split('.')[0]
-               for n in ast.walk(tree)
-               if isinstance(n, ast.Import)]
-    src_layer = layer_of(py)
+    imports = [
+        n.names[0].name.split('.')[0]
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Import)
+    ]
+    src = layer_of(py)
     for imp in imports:
-        tgt_path = py.with_name(f"{imp}.py")
-        tgt_layer = layer_of(tgt_path)
-        deps.append((src_layer, tgt_layer, py.name, imp))
-        if tgt_layer not in layers_rules.get(src_layer, []):
-            violations.append((src_layer, tgt_layer, py.name, imp))
+        tgt = layer_of(py.with_name(f"{imp}.py"))
+        deps.append((src, tgt, py.name, imp))
+        if tgt not in layers_rules.get(src, []):
+            violations.append((src, tgt, py.name, imp))
 
 # --- Konsolenausgabe ---
 print(f"[ArchGuard] Analysierte {len(deps)} Import-Kanten")
@@ -44,15 +45,13 @@ os.makedirs("tests-results", exist_ok=True)
 suite = ET.Element(
     "testsuite",
     name="ArchGuard",
-    tests=str(len(deps) if deps>0 else 1),
+    tests=str(len(deps) if len(deps) > 0 else 1),
     failures=str(len(violations))
 )
 
-# Echte Testcases
 for d in deps:
     case = ET.SubElement(
-        suite,
-        "testcase",
+        suite, "testcase",
         classname=d[0],
         name=f"{d[2]} -> {d[3]}"
     )
@@ -60,11 +59,9 @@ for d in deps:
         fail = ET.SubElement(case, "failure", message="Layer breach")
         fail.text = f"{d[2]} imports {d[3]} ({d[0]}→{d[1]} not allowed)"
 
-# Dummy-Testcase, falls keine deps da sind
 if len(deps) == 0:
     ET.SubElement(
-        suite,
-        "testcase",
+        suite, "testcase",
         classname="ArchGuard",
         name="no-imports"
     )
