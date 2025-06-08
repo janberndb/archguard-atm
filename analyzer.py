@@ -6,7 +6,7 @@ import os
 import xml.etree.ElementTree as ET
 import sys
 
-# --- Modell laden von JSON statt YAML ---
+# --- Modell laden von JSON (UTF-8) ---
 model = json.load(open("architecture.json", encoding="utf-8"))
 layers_rules = {
     layer_name: data["allowed"]
@@ -18,43 +18,39 @@ comp_map = {
 }
 
 def layer_of(path: pathlib.Path) -> str:
-    """
-    Ermittelt die Schicht (Layer) eines Pfads anhand des Komponentenschemas.
-    """
     rel = str(path).replace("\\", "/")
     for pattern, layer in comp_map.items():
         if pathlib.Path(rel).match(pattern):
             return layer
     return "Unknown"
 
-# Unterstütze sowohl 'atm' als auch 'ATM' als Wurzelordner
-roots = [r for r in ("atm", "ATM") if pathlib.Path(r).is_dir()]
-
 deps = []
 violations = []
-for root in roots:
-    for py in pathlib.Path(root).rglob("*.py"):
-        # Analyzer selbst überspringen
-        if py.name == "analyzer.py":
-            continue
 
-        src_layer = layer_of(py)
-        tree = ast.parse(open(py, encoding="utf-8").read())
-        imports = []
-        for node in ast.walk(tree):
-            # normale Imports: import foo
-            if isinstance(node, ast.Import):
-                imports += [alias.name.split(".")[0] for alias in node.names]
-            # from foo.bar import Baz
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                imports.append(node.module.split(".")[0])
+# Alle .py-Dateien im Verzeichnis atm/ scannen
+for py in pathlib.Path("atm").rglob("*.py"):
+    # analyzer.py nicht gegen sich selbst laufen lassen
+    if py.name == "analyzer.py":
+        continue
 
-        for imp in imports:
-            tgt_path = py.with_name(imp + ".py")
-            tgt_layer = layer_of(tgt_path)
-            deps.append((src_layer, tgt_layer, py.name, imp))
-            if tgt_layer not in layers_rules.get(src_layer, []):
-                violations.append((src_layer, tgt_layer, py.name, imp))
+    src_layer = layer_of(py)
+    tree = ast.parse(open(py, encoding="utf-8").read())
+
+    # Sammle alle Imports
+    imports = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imports.extend([n.name.split(".")[0] for n in node.names])
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imports.append(node.module.split(".")[0])
+
+    # Prüfe jede Import-Kante
+    for imp in imports:
+        tgt_path = py.with_name(f"{imp}.py")
+        tgt_layer = layer_of(tgt_path)
+        deps.append((src_layer, tgt_layer, py.name, imp))
+        if tgt_layer not in layers_rules.get(src_layer, []):
+            violations.append((src_layer, tgt_layer, py.name, imp))
 
 # Konsolenausgabe
 print(f"[ArchGuard] Analysierte {len(deps)} Import-Kanten")
@@ -87,7 +83,7 @@ for d in deps:
         fail = ET.SubElement(case, "failure", message="Layer breach")
         fail.text = f"{d[2]} imports {d[3]} ({d[0]}->{d[1]} not allowed)"
 
-# Dummy-Test, falls gar keine Imports gefunden wurden
+# Dummy-Test, falls gar keine Imports gefunden
 if not deps:
     ET.SubElement(
         suite,
@@ -96,7 +92,7 @@ if not deps:
         name="no-imports"
     )
 
-ET.ElementTree(suite).write("tests-results/archguard.xml")
+ET.ElementTree(suite).write("tests-results/archguard.xml", encoding="utf-8")
 
 # HTML-Report mit Mermaid
 html = [
@@ -114,7 +110,7 @@ html += [
 ]
 for d in deps:
     html.append(
-        f'{d[2]}["{d[2]}\n({d[0]})"] --> {d[3]}["{d[3]}\n({d[1]})"]'
+        f'{d[2]}["{d[2]}\\n({d[0]})"] --> {d[3]}["{d[3]}\\n({d[1]})"]'
     )
 html.append("</pre>")
 
