@@ -62,6 +62,22 @@ if violations:
 else:
     print("[ArchGuard] PASS: No violations found")
 
+# === Result banner (green on success, red on failure) ===
+if violations:
+    result_banner = """
+  <div style="padding:0.5rem; background:#f8d7da; color:#721c24;
+              border:1px solid #f5c6cb; border-radius:4px; margin-bottom:1rem;">
+    <strong>Result:</strong> Non-compliant with architecture model
+  </div>
+"""
+else:
+    result_banner = """
+  <div style="padding:0.5rem; background:#d4edda; color:#155724;
+              border:1px solid #c3e6cb; border-radius:4px; margin-bottom:1rem;">
+    <strong>Result:</strong> Compliant with architecture model
+  </div>
+"""
+
 # Generate JUnit XML
 os.makedirs("tests-results", exist_ok=True)
 suite = ET.Element(
@@ -97,6 +113,7 @@ html_lines = [
     "</head>",
     "<body>",
     "  <h2>ArchGuard Report</h2>",
+    result_banner,  # ← Insert the result banner here
     "  <h3>Violation Details</h3>",
 ]
 
