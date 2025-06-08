@@ -45,7 +45,7 @@ print(f"[ArchGuard] Analysierte {len(deps)} Import-Kanten")
 if violations:
     print(f"[ArchGuard] FAIL: {len(violations)} Verstöße gefunden")
     for v in violations:
-        print(f"   FAIL: {v[2]} ({v[0]}) → {v[3]} ({v[1]})")
+        print(f"   FAIL: {v[2]} ({v[0]}) -> {v[3]} ({v[1]})")
     exit_code = 1
 else:
     print("[ArchGuard] PASS: Keine Verstöße gefunden")
