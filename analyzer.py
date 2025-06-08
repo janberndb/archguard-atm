@@ -29,7 +29,7 @@ violations = []
 
 # Alle .py-Dateien unterhalb des Projekt-Roots durchsuchen
 for py in pathlib.Path(".").rglob("*.py"):
-    if py.name == "analyzer.py":  # eigenen Analyzer überspringen
+    if py.name == "analyzer.py":
         continue
 
     src_layer = layer_of(py)
@@ -81,14 +81,13 @@ if not deps:
     ET.SubElement(suite, "testcase", classname="ArchGuard", name="no-imports")
 ET.ElementTree(suite).write("tests-results/archguard.xml", encoding="utf-8")
 
-# HTML-Report mit Mermaid und vollständigem Wrapper
+# HTML-Report mit Mermaid und wörtlicher Erklärung samt Vorschlägen
 html_lines = [
     "<!DOCTYPE html>",
     "<html lang=\"de\">",
     "<head>",
     "  <meta charset=\"utf-8\">",
     "  <title>ArchGuard Report</title>",
-    "  <!-- Mermaid laden -->",
     "  <script src=\"https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js\"></script>",
     "  <script>mermaid.initialize({ startOnLoad: true });</script>",
     "  <style>",
@@ -117,6 +116,23 @@ else:
         "  <p>Keine Verstöße gefunden — alle Abhängigkeiten entsprechen dem Modell.</p>"
     )
 
+# NEUER ABSCHNITT: Vorschläge zur Behebung
+html_lines += [
+    "  <h3>Vorschläge zur Behebung</h3>",
+]
+if violations:
+    html_lines.append("  <ul>")
+    for src, tgt, fname, imp in violations:
+        allowed = layers_rules.get(src, [])
+        html_lines.append(
+            f"    <li>In <b>{fname}</b> ({src}) sind nur Importe in Layer "
+            f"<i>{', '.join(allowed)}</i> erlaubt. Passen Sie Ihren Import entsprechend an.</li>"
+        )
+    html_lines.append("  </ul>")
+else:
+    html_lines.append("  <p>—</p>")
+
+# Detailübersicht und Graph
 html_lines += [
     "  <h3>Detailübersicht</h3>",
     "  <pre>",
