@@ -27,31 +27,22 @@ def layer_of(path: pathlib.Path) -> str:
 deps = []
 violations = []
 
-# Dateien in atm/ durchsuchen
-# alte Zeile
-# for py in pathlib.Path("atm").rglob("*.py"):
-
-# neue Zeile – suche alle .py unterhalb des Projekt-Roots
+# Alle .py-Dateien unterhalb des Projekt-Roots durchsuchen
 for py in pathlib.Path(".").rglob("*.py"):
-    if py.name == "analyzer.py":   # eigenen Analyzer überspringen
-        continue
-    ...
-
-    # analyzer.py ausnehmen
+    # eigenen Analyzer und mögliche Test-Skripte überspringen
     if py.name == "analyzer.py":
         continue
 
     src_layer = layer_of(py)
     tree = ast.parse(py.read_text(encoding="utf-8"))
 
-    # sowohl import als auch from-imports erfassen
+    # sowohl import als auch from-import erfassen
     imports = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 imports.append(alias.name.split(".")[0])
         elif isinstance(node, ast.ImportFrom) and node.module:
-            # letzte Komponente als Zielmodul
             imports.append(node.module.split(".")[-1])
 
     for imp in imports:
@@ -62,8 +53,7 @@ for py in pathlib.Path(".").rglob("*.py"):
             violations.append((src_layer, tgt_layer, py.name, imp))
 
 # Konsolenausgabe
-echoed = f"[ArchGuard] Analysierte {len(deps)} Import-Kanten"
-print(echoed)
+print(f"[ArchGuard] Analysierte {len(deps)} Import-Kanten")
 exit_code = 0
 if violations:
     print(f"[ArchGuard] FAIL: {len(violations)} Verstöße gefunden")
@@ -88,7 +78,6 @@ for d in deps:
     if d in violations:
         fail = ET.SubElement(case, "failure", message="Layer breach")
         fail.text = f"{d[2]} imports {d[3]} ({d[0]}->{d[1]} not allowed)"
-# Dummy-Test, falls keine Imports gefunden wurden
 if not deps:
     ET.SubElement(
         suite,
@@ -118,7 +107,6 @@ if violations:
 else:
     html.append("<p>Keine Verstöße gefunden — alle Abhängigkeiten entsprechen dem Modell.</p>")
 
-# Danach dein bisheriges Detail-Listing
 html += [
     "<h3>Detailübersicht</h3>",
     "<pre>"
@@ -138,22 +126,7 @@ for d in deps:
     )
 html.append("</pre>")
 
-
-for d in deps:
-    mark = "FAIL" if d in violations else "PASS"
-    template.append(f"{mark} {d[2]} -> {d[3]} ({d[0]}->{d[1]})")
-template += [
-    "</pre>",
-    "<h3>Dependency graph</h3>",
-    "<pre class='mermaid'>",
-    "graph LR"
-]
-for d in deps:
-    template.append(
-        f"{d[2]}[\"{d[2]}\\n({d[0]})\"] --> {d[3]}[\"{d[3]}\\n({d[1]})\"]"
-    )
-template.append("</pre>")
 with open("archguard_report.html", "w", encoding="utf-8") as f:
-    f.write("\n".join(template))
+    f.write("\n".join(html))
 
 sys.exit(exit_code)
